@@ -384,7 +384,7 @@ const fetchConnectionPosts = async () => {
     fetchUserProfile();
     const loadPosts = async () => {
       const posts = await fetchConnectionPosts();
-      setPosts(posts);
+      setPosts(posts.filter((post): post is Post => post !== null && post !== undefined));
     };
     loadPosts();
   }, []);

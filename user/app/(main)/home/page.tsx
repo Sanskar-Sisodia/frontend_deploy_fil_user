@@ -4,21 +4,11 @@ import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Share2, Image, Video, Smile, Send, MoreHorizontal, Flag, MessageCircle, Heart, Repeat, Copy, Check } from 'lucide-react';
+import { Image, Smile, Send } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Avatar } from '@/components/ui/avatar';
-import { Separator } from '@/components/ui/separator';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { apiRequest } from '@/app/apiconnector/api';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Popover,
   PopoverContent,
@@ -26,53 +16,6 @@ import {
 } from "@/components/ui/popover";
 
 const DEFAULT_URL = "https://res.cloudinary.com/djvat4mcp/image/upload/v1741357526/zybt9ffewrjwhq7tyvy1.png";
-const CLOUDINARY_BASE_URL = "https://res.cloudinary.com/djvat4mcp/image/upload/v1741357526/";
-const DEFAULT_AVATAR = DEFAULT_URL;
-
-interface Author {
-  id: string;
-  username: string;
-  profilePicture: string;
-}
-
-interface Reaction {
-  id: string;
-  user: {
-    username: string;
-    avatar: string;
-  };
-  emoji: string;
-  createdAt: string;
-}
-
-interface Comment {
-  id: string;
-  user: {
-    username: string;
-    avatar: string;
-  };
-  content: string;
-  createdAt: string;
-}
-
-interface Media {
-  id: string;
-  mediaUrl: string;
-  mediaType: string;
-  postId: string;
-}
-
-interface Post {
-  id: string;
-  author: Author;
-  content: string;
-  createdAt: string;
-  reactions: number;
-  likedBy: Reaction[];
-  comments: number;
-  commentsList: Comment[];
-  mediaUrls: Media[];
-}
 
 export default function HomePage() {
   const [newPost, setNewPost] = useState('');
@@ -80,60 +23,28 @@ export default function HomePage() {
   const [profilePicture, setProfilePicture] = useState<string>(DEFAULT_URL);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [selectedPreviews, setSelectedPreviews] = useState<string[]>([]);
-  const [posts, setPosts] = useState<Post[]>([]); // ✅ Fixed TypeScript issue here
-  const [commentText, setCommentText] = useState('');
-  const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const videoInputRef = useRef<HTMLInputElement>(null);
+  const emojis = ['😀', '😂', '❤️', '👍', '🎉', '🔥', '💯', '🚀'];
 
   useEffect(() => {
-    const loadPosts = async () => {
-      const posts: Post[] = await fetchConnectionPosts(); // ✅ Ensured this function returns Post[]
-      setPosts(posts);
+    // Fetch profile picture from localStorage or API
+    const fetchProfilePicture = async () => {
+      try {
+        const userId = localStorage.getItem('userId');
+        if (!userId) return;
+        const userResponse = await apiRequest(`users/${userId}`, 'GET');
+        setProfilePicture(userResponse?.profilePicture || DEFAULT_URL);
+      } catch (error) {
+        console.error('Error fetching profile picture:', error);
+        setProfilePicture(DEFAULT_URL);
+      }
     };
-    loadPosts();
+
+    fetchProfilePicture();
   }, []);
 
-  const fetchConnectionPosts = async (): Promise<Post[]> => {
-    try {
-      const userId = localStorage.getItem('userId') || "404";
-      const connections = await apiRequest(`followers/${userId}/followed`, 'GET') || [];
-      let allPosts: Post[] = [];
-
-      for (const connection of connections) {
-        const userPosts = await apiRequest(`posts/user/${connection.id}`, 'GET') || [];
-        const activePosts = userPosts.filter((post: any) => post.status === "1");
-
-        for (const post of activePosts) {
-          const enrichedPost: Post = {
-            id: post.id,
-            author: {
-              id: post.user.id,
-              username: post.user.username,
-              profilePicture: post.user.profilePicture ? post.user.profilePicture : DEFAULT_AVATAR
-            },
-            content: post.content,
-            createdAt: post.createdAt,
-            reactions: 0,
-            likedBy: [],
-            comments: 0,
-            commentsList: [],
-            mediaUrls: post.mediaUrls || []
-          };
-          allPosts.push(enrichedPost);
-        }
-      }
-
-      return allPosts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    } catch (error) {
-      console.error('Error fetching posts:', error);
-      toast.error('Failed to fetch posts');
-      return [];
-    }
-  };
-
   const handlePostSubmit = async () => {
-    if (!newPost.trim()) return;
+    if (!newPost.trim() && selectedFiles.length === 0) return;
     setIsSubmitting(true);
 
     const userId = localStorage.getItem("userId");
@@ -151,9 +62,10 @@ export default function HomePage() {
     };
 
     try {
-      const res = await apiRequest('posts', 'POST', dataToBeSent);
+      await apiRequest('posts', 'POST', dataToBeSent);
       setNewPost('');
-      setPosts(prevPosts => [{ ...res, author: { id: userId, username: "You", profilePicture } }, ...prevPosts]);
+      setSelectedFiles([]);
+      setSelectedPreviews([]);
       toast.success('Post created successfully!');
     } catch (error) {
       console.error("Error creating post:", error);
@@ -161,6 +73,17 @@ export default function HomePage() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (selectedFiles.length + files.length > 4) {
+      toast.error("You can only upload up to 4 files");
+      return;
+    }
+
+    setSelectedFiles(prev => [...prev, ...files]);
+    setSelectedPreviews(prev => [...prev, ...files.map(file => URL.createObjectURL(file))]);
   };
 
   return (
@@ -178,15 +101,89 @@ export default function HomePage() {
               className="mb-4 resize-none"
               rows={2}
             />
-            <div className="flex justify-between">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => fileInputRef.current?.click()} 
+
+            {/* Media Upload Preview */}
+            {selectedPreviews.length > 0 && (
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                {selectedPreviews.map((preview, index) => (
+                  <div key={index} className="relative">
+                    <img
+                      src={preview}
+                      alt={`Preview ${index + 1}`}
+                      className="w-full h-48 object-cover rounded-lg"
+                    />
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="absolute top-2 right-2"
+                      onClick={() => {
+                        setSelectedPreviews(prev => prev.filter((_, i) => i !== index));
+                        setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* File Input */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              accept="image/*"
+              multiple
+              onChange={handleFileChange}
+            />
+
+            {/* Buttons for Upload & Emoji Picker */}
+            <div className="flex justify-between items-center">
+              <div className="flex gap-2">
+                {/* Image Upload Button */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()} // ✅ Works now!
+                  className="hover-scale"
+                >
+                  <Image className="w-6 h-6 text-primary" />
+                </Button>
+
+                {/* Emoji Picker Button */}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="ghost" size="sm" className="hover-scale">
+                      <Smile className="w-6 h-6 text-primary" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-2">
+                    <div className="grid grid-cols-4 gap-2">
+                      {emojis.map((emoji) => (
+                        <Button
+                          key={emoji}
+                          variant="ghost"
+                          className="h-8 w-8 p-0 hover:bg-accent"
+                          onClick={() => {
+                            setNewPost((prev) => prev + emoji);
+                          }}
+                        >
+                          {emoji}
+                        </Button>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Submit Post Button */}
+              <Button
+                size="sm"
+                onClick={handlePostSubmit}
+                disabled={isSubmitting || (!newPost.trim() && selectedFiles.length === 0)}
+                className="hover-scale ml-auto"
               >
-                <Image className="w-4 h-4 mr-2 text-primary" />
-              </Button>
-              <Button size="sm" onClick={handlePostSubmit} disabled={isSubmitting || !newPost.trim()}>
                 {isSubmitting ? <span className="animate-spin mr-2"></span> : <Send className="w-4 h-4 mr-2" />}
                 Post
               </Button>
@@ -194,29 +191,6 @@ export default function HomePage() {
           </div>
         </div>
       </Card>
-
-      {posts.map((post) => (
-        <Card key={post.id} className="p-4 mb-4 shadow-md">
-          <div className="flex items-center gap-3 mb-4">
-            <Avatar className="w-10 h-10">
-              <img src={post.author.profilePicture} alt={post.author.username} />
-            </Avatar>
-            <div className="flex-1">
-              <h3 className="font-semibold">{post.author.username}</h3>
-            </div>
-          </div>
-          <p className="mb-4">{post.content}</p>
-          <Separator className="my-4" />
-          <div className="flex justify-between">
-            <Button variant="ghost" size="sm">
-              <Heart className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="sm">
-              <MessageCircle className="h-4 w-4" />
-            </Button>
-          </div>
-        </Card>
-      ))}
     </div>
   );
 }

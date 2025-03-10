@@ -341,11 +341,12 @@ const fetchConnectionPosts = async () => {
     console.log('Enriched post:', enrichedPosts);
     // Filter out null posts and sort by date (newest first)
     const validPosts = enrichedPosts
-      .sort((a, b) => {
-        const dateA = new Date(a.createdAt).getTime();
-        const dateB = new Date(b.createdAt).getTime();
-        return dateB - dateA; // Sort in descending order (newest first)
-      });
+  .filter((post) => post && post.createdAt) // Remove null or undefined posts
+  .sort((a, b) => {
+    const dateA = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const dateB = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return dateB - dateA; // Sort in descending order (newest first)
+  });
 
     return validPosts;
 

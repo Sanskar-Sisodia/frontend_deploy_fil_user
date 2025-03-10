@@ -1,0 +1,8 @@
+{
+  "/(main)/home/page": "app/(main)/home/page.js",
+  "/(main)/profile/page": "app/(main)/profile/page.js",
+  "/(main)/user/page": "app/(main)/user/page.js",
+  "/(main)/messages/page": "app/(main)/messages/page.js",
+  "/(main)/post/page": "app/(main)/post/page.js",
+  "/(main)/notifications/page": "app/(main)/notifications/page.js"
+}

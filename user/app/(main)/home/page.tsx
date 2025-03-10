@@ -85,65 +85,59 @@ export default function HomePage() {
     loadPosts();
   }, []);
 
-  const fetchConnectionPosts = async (): Promise<Post[]> => {
+  const handlePostSubmit = async () => {
+    if (!newPost.trim()) return;
+    setIsSubmitting(true);
     try {
-      const userId = localStorage.getItem('userId') || "404";
-      const connections = await apiRequest(`followers/${userId}/followed`, 'GET') || [];
-      const activeConnections = connections.filter((user: any) => user.status !== "0" && user.status !== 0);
-      let allPosts: Post[] = [];
-      for (const connection of activeConnections) {
-        const userDetails = await apiRequest(`users/${connection.id}`, 'GET');
-        if (userDetails.status !== 0) {
-          const userPosts = await apiRequest(`posts/user/${connection.id}`, 'GET') || [];
-          const activePosts: Post[] = userPosts.filter((post: any) => post.status === "1");
-          allPosts.push(...activePosts);
-        }
+      const userId = localStorage.getItem('userId');
+      if (!userId) {
+        toast.error('User not logged in');
+        setIsSubmitting(false);
+        return;
       }
-      return allPosts;
+      const postData = { userId, content: newPost };
+      await apiRequest('posts', 'POST', postData);
+      toast.success('Post created successfully!');
+      setNewPost('');
     } catch (error) {
-      console.error('Error fetching posts:', error);
-      toast.error('Failed to fetch posts');
-      return [];
-    }
-  };
-
-  const handleLikeClick = async (postId: string) => {
-    try {
-      const userId = localStorage.getItem('userId') || "404";
-      const currentPost = posts.find(post => post.id === postId);
-      if (!currentPost) return;
-      const hasLiked = currentPost.likedBy.some(like => like.user.username === userProfile.name);
-      const url = `reactions/${postId}/${userId}`;
-      if (hasLiked) {
-        await apiRequest(url, 'DELETE');
-        setPosts(prevPosts => prevPosts.map(post =>
-          post.id === postId
-            ? { ...post, reactions: post.reactions - 1, likedBy: post.likedBy.filter(like => like.user.username !== userProfile.name) }
-            : post
-        ));
-        toast.error("Unliked this post!");
-      } else {
-        const likeResponse = await apiRequest(`${url}/👍`, 'POST');
-        if (likeResponse) {
-          setPosts(prevPosts => prevPosts.map(post =>
-            post.id === postId
-              ? {
-                  ...post,
-                  reactions: post.reactions + 1,
-                  likedBy: [...post.likedBy, { id: Date.now().toString(), user: { username: userProfile.name, avatar: userProfile.profilePicture }, emoji: '👍', createdAt: likeResponse.createdAt || new Date().toISOString() }]
-                }
-              : post
-          ));
-          toast.success("Post liked!");
-        }
-      }
-    } catch (error) {
-      console.error('Error liking/unliking post:', error);
-      toast.error("Failed to update like");
+      toast.error('Failed to create post');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4">{/* UI for homepage with posts */}</div>
+    <div className="max-w-2xl mx-auto py-8 px-4">
+      {/* Post Creation Section */}
+      <Card className="p-4 mb-6 shadow-md">
+        <div className="flex gap-4">
+          <Avatar>
+            <img src={userProfile.profilePicture} alt="Profile" onError={(e) => (e.currentTarget.src = DEFAULT_AVATAR)} />
+          </Avatar>
+          <div className="flex-1">
+            <Textarea
+              placeholder="What's on your mind?"
+              value={newPost}
+              onChange={(e) => setNewPost(e.target.value)}
+              className="mb-4 resize-none"
+              rows={2}
+            />
+            <div className="flex justify-between items-center">
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm">
+                  <Image className="w-4 h-4 text-primary" />
+                </Button>
+                <Button variant="ghost" size="sm">
+                  <Smile className="w-4 h-4 text-primary" />
+                </Button>
+              </div>
+              <Button size="sm" onClick={handlePostSubmit} disabled={isSubmitting || !newPost.trim()}>
+                <Send className="w-4 h-4 mr-2" /> Post
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Card>
+    </div>
   );
 }

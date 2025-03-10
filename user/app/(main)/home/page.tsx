@@ -18,59 +18,31 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 
 const DEFAULT_AVATAR = "https://res.cloudinary.com/djvat4mcp/image/upload/v1741357526/zybt9ffewrjwhq7tyvy1.png";
 
-interface Author {
-  id: string;
-  username: string;
-  profilePicture: string;
-}
-
-interface Reaction {
-  id: string;
-  user: { username: string; avatar: string };
-  emoji: string;
-  createdAt: string;
-}
-
-interface Comment {
-  id: string;
-  user: { username: string; avatar: string };
-  content: string;
-  createdAt: string;
-}
-
-interface Media {
-  id: string;
-  mediaUrl: string;
-  mediaType: string;
-  postId: string;
-}
-
-interface Post {
-  id: string;
-  author: Author;
-  content: string;
-  createdAt: string;
-  reactions: number;
-  likedBy: Reaction[];
-  comments: number;
-  commentsList: Comment[];
-  mediaUrls: Media[];
-}
-
-interface UserProfile {
-  id: string;
-  name: string;
-  profilePicture: string;
-  email: string;
-}
+const fetchConnectionPosts = async () => {
+  try {
+    const userId = localStorage.getItem('userId') || "404";
+    const connections = await apiRequest(`followers/${userId}/followed`, 'GET') || [];
+    let allPosts = [];
+    for (const connection of connections) {
+      const userDetails = await apiRequest(`users/${connection.id}`, 'GET');
+      if (userDetails.status !== 0) {
+        const userPosts = await apiRequest(`posts/user/${connection.id}`, 'GET') || [];
+        allPosts.push(...userPosts);
+      }
+    }
+    return allPosts;
+  } catch (error) {
+    console.error('Error fetching posts:', error);
+    toast.error('Failed to fetch posts');
+    return [];
+  }
+};
 
 export default function HomePage() {
   const [newPost, setNewPost] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [commentText, setCommentText] = useState('');
-  const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile>({
+  const [posts, setPosts] = useState([]);
+  const [userProfile, setUserProfile] = useState({
     id: '',
     name: '',
     profilePicture: DEFAULT_AVATAR,
@@ -108,7 +80,6 @@ export default function HomePage() {
 
   return (
     <div className="max-w-2xl mx-auto py-8 px-4">
-      {/* Post Creation Section */}
       <Card className="p-4 mb-6 shadow-md">
         <div className="flex gap-4">
           <Avatar>
